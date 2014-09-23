@@ -43,3 +43,15 @@ class LogEntry:
         self.author_name = author_name
         self.date = date
         self.message = message
+
+    def __getitem__(self, key):
+        if key == 'commit':
+            return self.commit
+        elif key == 'author_name':
+            return self.author_name
+        elif key == 'date':
+            return self.date
+        elif key == 'message':
+            return self.message
+        else:
+            raise Exception("Unknown attribute: " + key)

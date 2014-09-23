@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-import curses
+from curses import wrapper, color_pair, init_pair, newwin, curs_set
+from curses import A_BLINK, A_UNDERLINE, A_REVERSE
+from curses import COLOR_BLUE, COLOR_GREEN, COLOR_CYAN, COLOR_BLACK, COLOR_RED, COLOR_YELLOW
+from curses import COLOR_MAGENTA
 from log import log
 
 
@@ -27,13 +30,14 @@ class App:
 
     def run(self, screen):
         self.screen = screen
-        maxyx = self.screen.getmaxyx()
-        self.screen_size = Position(maxyx[0], maxyx[1])
+        self._update_screen_size()
+
         self.view_stacks = {0: self.create_view_stack(0)}
         self.selected_view_stack = None
         self.select_view_stack(0)
 
         while True:
+            self._update_screen_size()
             self.selected_view_stack.repaint()
             screen.refresh()
             key = screen.getkey()
@@ -90,13 +94,13 @@ class App:
 
         helpmsg = "(search for command; try help)"
 
-        box = curses.newwin(h, w, y, x)
+        box = newwin(h, w, y, x)
         box.border()
-        box.addstr(1, 1, '_', Color.WHITE | curses.A_BLINK | curses.A_UNDERLINE)
+        box.addstr(1, 1, '_', Color.WHITE | A_BLINK | A_UNDERLINE)
         box.addstr(1, w - len(helpmsg) - 1, helpmsg, Color.YELLOW)
         box.refresh()
 
-        cbox = curses.newwin(14, w, y+3, x)
+        cbox = newwin(14, w, y+3, x)
 
         pattern = ''
         commands = []
@@ -135,12 +139,12 @@ class App:
 
             if len(pattern) == 0:
                 box.addstr(1, w - len(helpmsg) - 1, helpmsg, Color.YELLOW)
-                box.addstr(1, 1, '_', Color.WHITE | curses.A_BLINK | curses.A_UNDERLINE)
+                box.addstr(1, 1, '_', Color.WHITE | A_BLINK | A_UNDERLINE)
 
             else:
                 box.addnstr(1, 1, pattern[-w+3:], w-2, Color.WHITE)
                 box.addstr(1, min(len(pattern)+1, w-2), '_',
-                           Color.WHITE | curses.A_BLINK | curses.A_UNDERLINE)
+                           Color.WHITE | A_BLINK | A_UNDERLINE)
 
             commands = []
 
@@ -156,8 +160,7 @@ class App:
             for i, command in enumerate(commands):
                 text = '[' + command.shortcut + '] ' + command.name
                 if i == selected_command_index:
-                    cbox.addnstr(i+1, 1, text, w-2, Color.YELLOW | curses.A_REVERSE)
-
+                    cbox.addnstr(i+1, 1, text, w-2, Color.YELLOW | A_REVERSE)
                 else:
                     cbox.addnstr(i+1, 1, text, w-2, Color.YELLOW)
 
@@ -192,10 +195,10 @@ class App:
         pass
 
     def page_up(self):
-        pass
+        self.selected_view_stack.page_up()
 
     def page_down(self):
-        pass
+        self.selected_view_stack.page_down()
 
     def start(self):
         self.selected_view_stack.start()
@@ -252,7 +255,7 @@ class App:
 
         helpmsg = '(press ESC to close)'
 
-        box = curses.newwin(h, w, y, x)
+        box = newwin(h, w, y, x)
         box.border()
         box.addstr(h-2, w - len(helpmsg) - 1, helpmsg, Color.YELLOW)
         box.addstr(2, 3, 'Available commands:', Color.WHITE)
@@ -268,6 +271,10 @@ class App:
 
         box.erase()
         box.refresh()
+
+    def _update_screen_size(self):
+        maxyx = self.screen.getmaxyx()
+        self.screen_size = Position(maxyx[0], maxyx[1])
 
 
 class ViewStack:
@@ -303,6 +310,12 @@ class ViewStack:
     def down(self):
         self.views[-1].down()
 
+    def page_up(self):
+        self.views[-1].page_up()
+
+    def page_down(self):
+        self.views[-1].page_down()
+
     def start(self):
         self.views[-1].start()
 
@@ -335,9 +348,15 @@ class View:
     def __init__(self, view_stack):
         self.view_stack = view_stack
         self.app = view_stack.app
-        self.screen = view_stack.app.screen
-        self.screen_size = view_stack.app.screen_size
         self.commands = CommandRegistry()
+
+    @property
+    def screen(self):
+        return self.app.screen
+
+    @property
+    def screen_size(self):
+        return self.app.screen_size
 
     def repaint(self):
         self.screen.clear()
@@ -356,6 +375,12 @@ class View:
         pass
 
     def down(self):
+        pass
+
+    def page_up(self):
+        pass
+
+    def page_down(self):
         pass
 
     def start(self):
@@ -430,22 +455,20 @@ class Color:
 
     @staticmethod
     def init():
-        curses.ESCDELAY = 25
+        init_pair(COLOR_BLUE, COLOR_BLUE, COLOR_BLACK)
+        init_pair(COLOR_GREEN, COLOR_GREEN, COLOR_BLACK)
+        init_pair(COLOR_RED, COLOR_RED, COLOR_BLACK)
+        init_pair(COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK)
+        init_pair(COLOR_CYAN, COLOR_CYAN, COLOR_BLACK)
+        init_pair(COLOR_MAGENTA, COLOR_MAGENTA, COLOR_BLACK)
 
-        curses.init_pair(curses.COLOR_BLUE, curses.COLOR_BLUE, curses.COLOR_BLACK)
-        curses.init_pair(curses.COLOR_GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(curses.COLOR_RED, curses.COLOR_RED, curses.COLOR_BLACK)
-        curses.init_pair(curses.COLOR_YELLOW, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(curses.COLOR_CYAN, curses.COLOR_CYAN, curses.COLOR_BLACK)
-        curses.init_pair(curses.COLOR_MAGENTA, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-
-        Color.WHITE = curses.color_pair(0)
-        Color.BLUE = curses.color_pair(curses.COLOR_BLUE)
-        Color.GREEN = curses.color_pair(curses.COLOR_GREEN)
-        Color.RED = curses.color_pair(curses.COLOR_RED)
-        Color.YELLOW = curses.color_pair(curses.COLOR_YELLOW)
-        Color.CYAN = curses.color_pair(curses.COLOR_CYAN)
-        Color.MAGENTA = curses.color_pair(curses.COLOR_MAGENTA)
+        Color.WHITE = color_pair(0)
+        Color.BLUE = color_pair(COLOR_BLUE)
+        Color.GREEN = color_pair(COLOR_GREEN)
+        Color.RED = color_pair(COLOR_RED)
+        Color.YELLOW = color_pair(COLOR_YELLOW)
+        Color.CYAN = color_pair(COLOR_CYAN)
+        Color.MAGENTA = color_pair(COLOR_MAGENTA)
 
 
 _app = None
@@ -455,7 +478,7 @@ def _main(screen):
     global _app
 
     Color.init()
-    curses.curs_set(0)
+    curs_set(0)
 
     _app.run(screen)
 
@@ -464,4 +487,4 @@ def run(app):
     global _app
 
     _app = app
-    curses.wrapper(_main)
+    wrapper(_main)
