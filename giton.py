@@ -91,5 +91,5 @@ class GitonApp(App):
         return GitonView(view_stack_index)
 
 
-git = Git('/Users/ivan/Liferay/devel/current/liferay-portal')
+git = Git('.')
 run(GitonApp())
