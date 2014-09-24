@@ -1,10 +1,27 @@
-#!/usr/bin/env python
-
 from curses import wrapper, color_pair, init_pair, newwin, curs_set
 from curses import A_BLINK, A_UNDERLINE, A_REVERSE
 from curses import COLOR_BLUE, COLOR_GREEN, COLOR_CYAN, COLOR_BLACK, COLOR_RED, COLOR_YELLOW
 from curses import COLOR_MAGENTA
 from log import log
+
+
+LEFT = 0
+MIDDLE = 1
+RIGHT = 2
+
+
+def shrink_str(str, max_len, where):
+    if len(str) <= max_len:
+        return str
+
+    if where == LEFT:
+        return '.....' + str[-(max_len - 5)]
+    elif where == RIGHT:
+        return str[0:max_len - 5] + '.....'
+    elif where == MIDDLE:
+        llen = (max_len // 2) - 1
+        rlen = max_len - llen - 5
+        return str[0:llen] + '.....' + str[-rlen:]
 
 
 class Position:
@@ -89,7 +106,7 @@ class App:
     def run_command(self):
         x = self.screen_size.x // 8
         y = self.screen_size.y // 3 - 1
-        w = 6 * self.x // 8
+        w = 6 * self.screen_size.x // 8
         h = 3
 
         helpmsg = "(search for command; try help)"
@@ -177,10 +194,10 @@ class App:
             commands[selected_command_index].run()
 
     def back(self):
-        pass
+        self.selected_view_stack.back()
 
     def navigate(self):
-        pass
+        self.selected_view_stack.navigate()
 
     def up(self):
         self.selected_view_stack.up()
@@ -248,10 +265,10 @@ class App:
         exit()
 
     def help(self):
-        x = self.y // 8
-        y = self.y // 8
-        w = 6 * self.y // 8
-        h = 6 * self.y // 8
+        x = self.screen_size.x // 8
+        y = self.screen_size.y // 8
+        w = 6 * self.screen_size.x // 8
+        h = 6 * self.screen_size.y // 8
 
         helpmsg = '(press ESC to close)'
 
@@ -303,6 +320,15 @@ class ViewStack:
 
     def deactivate(self):
         self.views[-1].deactivate()
+
+    def back(self):
+        if len(self.views) > 1:
+            self.views[-1].deactivate()
+            self.views.pop()
+            self.views[-1].activate()
+
+    def navigate(self):
+        self.views[-1].navigate()
 
     def up(self):
         self.views[-1].up()
@@ -369,6 +395,9 @@ class View:
         self.repaint()
 
     def deactivate(self):
+        pass
+
+    def navigate(self):
         pass
 
     def up(self):

@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-from vi3 import run, App, View, Color
-from vi3_table import Table, Column
+# from curses import A_BOLD
 from git import Git
-# from log import log
+from log import log
+from vi3 import MIDDLE
+from vi3 import run, App, View, Color, shrink_str
+from vi3_table import Table, Column
 
 
-class GitonView(View):
+class LogView(View):
     def __init__(self, view_stack):
         View.__init__(self, view_stack)
 
@@ -37,6 +39,11 @@ class GitonView(View):
         table.rows.extend(log_entries)
         table.selected_row_index = self._selected_log_entry - start
         table.paint(self.screen)
+
+    def navigate(self):
+        log_entry = self._log_entries[self._selected_log_entry]
+        view = LogEntryView(self.view_stack, log_entry)
+        self.view_stack.push(view)
 
     def up(self):
         self._selected_log_entry -= 1
@@ -83,12 +90,47 @@ class GitonView(View):
             self._first_log_entry = self._selected_log_entry
 
 
+class LogEntryView(View):
+    def __init__(self, view_stack, log_entry):
+        View.__init__(self, view_stack)
+
+        self._log_entry = log_entry
+        # show commit header + files: git show f4ec586 --format=medium --name-only
+        # show only files in commit: git diff-tree --no-commit-id --name-only -r f4ec58
+
+    def paint(self):
+        log_entry = self._log_entry
+
+        self.screen.addstr(0, 0, 'Commit:', Color.YELLOW)
+        self.screen.addstr(0, 9, log_entry.commit, Color.BLUE)
+
+        self.screen.addstr(1, 0, 'Author:', Color.YELLOW)
+        self.screen.addstr(1, 9, log_entry.author_name, Color.BLUE)
+
+        self.screen.addstr(2, 0, 'Date:', Color.YELLOW)
+        self.screen.addstr(2, 9, log_entry.date, Color.BLUE)
+
+        message = log_entry.message
+        lines = (len(message) + self.screen_size.x - 1) // self.screen_size.x
+        for i in range(0, lines):
+            start = i * self.screen_size.x
+            end = start + self.screen_size.x
+
+            self.screen.addstr(4 + i, 0, log_entry.message[start:end])
+
+        log('lines: ', lines)
+
+        for i, changed_file in enumerate(self._log_entry.changed_files, 5 + lines):
+            changed_file = shrink_str(changed_file, self.screen_size.x, MIDDLE)
+            self.screen.addstr(i, 0, changed_file, Color.MAGENTA)
+
+
 class GitonApp(App):
     def __init__(self):
         App.__init__(self)
 
     def create_initial_view(self, view_stack_index):
-        return GitonView(view_stack_index)
+        return LogView(view_stack_index)
 
 
 git = Git('.')
