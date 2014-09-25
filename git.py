@@ -31,9 +31,18 @@ class Git:
         output = self._git('status --porcelain')
         lines = output.split('\n')
 
+        index_file_statuses = []
+        working_file_statuses = []
+
         for line in lines:
-            status = line[0:2]
-            file = line[3]
+            index_status = line[0:1]
+            working_status = line[1:2]
+            path = line[3:]
+
+            index_file_statuses.append(FileStatus(path, index_status))
+            working_file_statuses.append(FileStatus(path, working_status))
+
+        return Status(index_file_statuses, working_file_statuses)
 
     def difftool(self, start_commit, end_commit, file):
         self._git_exec('difftool -y -t vimdiff ' + start_commit + '..' + end_commit + ' ' + file)
@@ -47,14 +56,18 @@ class Git:
     def delete(self, log_entry):
         pass
 
-    def _get_changed_files(self, log_entry):
+    def _get_file_statuses(self, log_entry):
         output = self._git('diff-tree --no-commit-id --name-only -r ' + log_entry.commit)
         changed_files = output.split('\n')
 
         if changed_files[-1] == '':
             changed_files = changed_files[:-1]
 
-        return changed_files
+        file_statuses = []
+        for changed_file in changed_files:
+            file_statuses.append(FileStatus(changed_file, FileStatus.MODIFIED))
+
+        return file_statuses
 
     def _git(self, gitcmd):
         old_dir = os.getcwd()
@@ -88,7 +101,7 @@ class LogEntry:
         self.author_name = author_name
         self.date = date
         self.message = message
-        self._changed_files = None
+        self._file_statuses = None
 
     def __getitem__(self, key):
         if key == 'commit':
@@ -103,24 +116,28 @@ class LogEntry:
             raise Exception("Unknown attribute: " + key)
 
     @property
-    def changed_files(self):
-        if self._changed_files is None:
-            self._changed_files = self._git._get_changed_files(self)
+    def file_statuses(self):
+        if self._file_statuses is None:
+            self._file_statuses = self._git._get_file_statuses(self)
 
-        return self._changed_files
+        return self._file_statuses
 
-class FileChange:
+
+class Status:
+    def __init__(self, index_file_statuses, working_file_statuses):
+        self.index_file_statuses = index_file_statuses
+        self.working_file_statuses = working_file_statuses
+
+
+class FileStatus:
     UNMODIFIED = ' '
     MODIFIED = 'M'
     ADDED = 'A'
     DELETED = 'D'
+    RENAMED = 'R'
+    COPIED = 'C'
+    UPDATED = 'U'
 
     def __init__(self, path, status):
         self.path = path
         self.status = status
-
-
-
-
-
-

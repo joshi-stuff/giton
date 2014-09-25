@@ -81,9 +81,13 @@ class LogView(View):
         self.repaint()
 
     def _fetch_log_entries(self):
-        # if len(self._log_entries) == 0:
         while self._last_log_entry >= len(self._log_entries):
+            prev_log_entries_count = len(self._log_entries)
+
             self._log_entries = git.log(self._selected_log_entry + self.screen_size.y)
+
+            if len(self._log_entries) == prev_log_entries_count:
+                break
 
     def _do_pagination(self):
         if self._selected_log_entry < 0:
@@ -92,30 +96,30 @@ class LogView(View):
         if self._selected_log_entry > self._last_log_entry:
             self._first_log_entry = self._selected_log_entry - self.screen_size.y + 1
 
+        if self._selected_log_entry >= len(self._log_entries):
+            self._selected_log_entry = len(self._log_entries) - 1
+
         if self._selected_log_entry < self._first_log_entry:
             self._first_log_entry = self._selected_log_entry
 
     def _reload(self):
         self._log_entries = []
-        _fetch_log_entries()
+        self._fetch_log_entries()
         self.repaint()
 
     def _interactive_rebase(self):
         log_entry = self._log_entries[self._selected_log_entry]
-
         git.interactive_rebase(log_entry)
         self._reload()
 
     def _squash(self):
         log_entry = self._log_entries[self._selected_log_entry]
         prev_log_entry = git.log(2, log_entry.commit)[1]
-
         git.squash(log_entry, prev_log_entry.message)
         self._reload()
 
     def _delete_commit(self):
         log_entry = self._log_entries[self._selected_log_entry]
-
         git.delete(log_entry)
         self._reload()
 
@@ -125,8 +129,8 @@ class LogEntryView(View):
         View.__init__(self, view_stack)
 
         self._log_entry = log_entry
-        self._changed_files = log_entry.changed_files
-        self._selected_changed_file = 0
+        self._file_statuses = log_entry.file_statuses
+        self._selected_file_status = 0
         # show commit header + files: git show f4ec586 --format=medium --name-only
         # show only files in commit: git diff-tree --no-commit-id --name-only -r f4ec58
 
@@ -152,13 +156,13 @@ class LogEntryView(View):
 
             screen.addstr(4 + i, 0, log_entry.message[start:end])
 
-        for i, changed_file in enumerate(self._changed_files):
+        for i, file_status in enumerate(self._file_statuses):
             attr = 0
 
-            if i == self._selected_changed_file:
+            if i == self._selected_file_status:
                 attr |= A_REVERSE
 
-            changed_file = shrink_str(changed_file, screen_size.x, MIDDLE)
+            changed_file = shrink_str(file_status.path, screen_size.x, MIDDLE)
             screen.addstr(lines + 5 + i, 0, changed_file, Color.MAGENTA | attr)
 
     def up(self):
@@ -168,20 +172,20 @@ class LogEntryView(View):
         self.repaint()
 
     def down(self):
-        self._selected_changed_file += 1
+        self._selected_file_status += 1
 
-        changed_files_count = len(self._changed_files)
-        if self._selected_changed_file > (changed_files_count - 1):
-            self._selected_changed_file = changed_files_count - 1
+        file_statuses_count = len(self._file_statuses)
+        if self._selected_file_status > (file_statuses_count - 1):
+            self._selected_file_status = file_statuses_count - 1
 
         self.repaint()
 
     def navigate(self):
         log_entry = self._log_entry
-        changed_file = self._changed_files[self._selected_changed_file]
+        file_status = self._file_statuses[self._selected_file_status]
         prev_log_entry = git.log(2, log_entry.commit)[1]
 
-        git.difftool(log_entry.commit, prev_log_entry.commit, changed_file)
+        git.difftool(log_entry.commit, prev_log_entry.commit, file_status.path)
         # git difftool -y -t vimdiff f78df48..2fb0c73 <file>
 
 
