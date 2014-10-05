@@ -1,0 +1,11 @@
+name: giton
+version: 0.1.0
+author: Iván Zaera Avellón <izaera@gmail.com>
+description: A curses based git client written in Dart
+homepage: https://github.com/izaera/giton
+environment:
+  sdk: '>=0.8.10+6 <2.0.0'
+dependencies:
+  curses:
+    path: /Users/ivan/Personal/Dart/dart-curses
+  logging: any
