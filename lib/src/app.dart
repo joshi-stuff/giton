@@ -38,6 +38,7 @@ class App {
   final _dc = screen;
   final _keyCaptureHandlers = <KeyCaptureHandler>[];
   final _commands = new CommandRegistry();
+  final _storedKeys = <Key>[];
   final _viewStacks = <ViewStack>[];
   final ViewFactory _initialViewFactory;
   ViewStack _selectedViewStack;
@@ -79,6 +80,7 @@ class App {
 
   void pushKeyCaptureHandler(KeyCaptureHandler keyCaptureHandler) {
     _keyCaptureHandlers.add(keyCaptureHandler);
+    _storedKeys.clear();
   }
 
   KeyCaptureHandler popKeyCaptureHandler() {
@@ -139,22 +141,40 @@ class App {
     if (_keyCaptureHandlers.isNotEmpty) {
       _keyCaptureHandlers.last(ev);
     } else {
-      final key = ev.key;
+      _storedKeys.add(ev.key);
 
-      final cmds = _searchCommandsKeys([key]);
-      _log.fine('key event: "${key}"  candidate commands: ${cmds}');
-
-      if (cmds.length == 0) {
-      } else if (cmds.length == 1) {
-        cmds[0].run();
-      } else {
-
-      } else if (key.name.startsWith('F')) {
-        int fnum = int.parse(key.name.substring(1), onError: (_) => null);
+      if ((_storedKeys.length == 1) && _storedKeys.last.name.startsWith('F')) {
+        int fnum = int.parse(_storedKeys.last.name.substring(1), onError: (_) => null);
 
         if (fnum != null) {
-          _log.fine('selecting view stack: ${fnum - 1}');
+          _log.fine('ket event: selectViewStack(${fnum - 1})');
+          _storedKeys.clear();
           selectViewStack(fnum-1);
+        }
+      } else {
+        final cmds = _searchCommandsKeys(_storedKeys);
+
+        switch (cmds.length) {
+          case 0:
+            _log.fine('key event: _storedKeys.clear()');
+            _storedKeys.clear();
+            break;
+
+          case 1:
+            final cmd = cmds[0];
+
+            if (cmd.isForKeys(_storedKeys)) {
+              _log.fine('key event: ${cmds[0]}.run()');
+              _storedKeys.clear();
+              cmds[0].run();
+            } else {
+              _log.fine('key event: _storedKeys=${_storedKeys}  cmds=${cmds}');
+            }
+            break;
+
+          default:
+            _log.fine('key event: _storedKeys=${_storedKeys}  cmds=${cmds}');
+            break;
         }
       }
 
@@ -388,8 +408,8 @@ class View {
 
   List<Command> _getCommands() => _commands.all.toList();
 
-  List<Command> _searchCommandsPatter(String pattern) => _commands.searchPattern(pattern);
+  List<Command> _searchCommandsPattern(String pattern) => _commands.searchPattern(pattern);
 
-  List<Command> _searchCommandsKeys(List<Key> key) => _commands.searchKeys([key]);
+  List<Command> _searchCommandsKeys(List<Key> keys) => _commands.searchKeys(keys);
 
 }

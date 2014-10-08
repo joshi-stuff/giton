@@ -35,24 +35,12 @@ class CommandRegistry {
     var commands = <Command>[];
 
     _commands.forEach((command) {
-      var ckeys = command.keys;
-
-      if ((ckeys.length >= keys.length) && (_equals(ckeys, keys.sublist(0, ckeys.length)))) {
+      if (command.canBeForKeys(keys)) {
         commands.add(command);
       }
     });
 
     return commands;
-  }
-
-  bool _equals(List<Key> ckeys, List<Key> keys) {
-    for (int i = 0; i < ckeys.length; i++) {
-      if (keys[i] != ckeys[i]) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
 }
@@ -69,6 +57,34 @@ class Command {
 
   void run() {
     _handler();
+  }
+
+  bool isForKeys(List<Key> inputKeys) {
+    if (inputKeys.length != keys.length) {
+      return false;
+    }
+
+    for (int i = 0; i < inputKeys.length; i++) {
+      if (keys[i] != inputKeys[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool canBeForKeys(List<Key> inputKeys) {
+    if (inputKeys.length > keys.length) {
+      return false;
+    }
+
+    for (int i = 0; i < inputKeys.length; i++) {
+      if (keys[i] != inputKeys[i]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   String toString() => 'Command(${name})';
@@ -101,22 +117,22 @@ class GoRightCommand extends Command {
   GoRightCommand(Function handler) : super([new Key('RIGHT')], 'Right', 'Go right', handler, hidden: true);
 }
 
-class PageUpCommand extends Command {
-  PageUpCommand(Function handler) : super([new Key('PPAGE')], 'Page Up', 'Page up', handler, hidden: true);
+class GotoPrevPageCommand extends Command {
+  GotoPrevPageCommand(Function handler) : super([new Key('PPAGE')], 'Page Up', 'Page up', handler, hidden: true);
 }
 
-class PageDownCommand extends Command {
-  PageDownCommand(Function handler)
+class GotoNextPageCommand extends Command {
+  GotoNextPageCommand(Function handler)
       : super([new Key('NPAGE')], 'Page Down', 'Page down', handler, hidden: true);
 }
 
-class GoToStartCommand extends Command {
-  GoToStartCommand(Function handler)
+class GotoStartCommand extends Command {
+  GotoStartCommand(Function handler)
       : super([new Key('g'), new Key('g')], 'gg', 'Go to start', handler, hidden: true);
 }
 
-class GoToEndCommand extends Command {
-  GoToEndCommand(Function handler)
+class GotoEndCommand extends Command {
+  GotoEndCommand(Function handler)
       : super([new Key('G')], 'G', 'Go to end', handler, hidden: true);
 }
 
