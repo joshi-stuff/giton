@@ -8,13 +8,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
-import 'package:giton/src/ui.dart';
-export 'package:giton/src/ui.dart';
+import 'package:giton/ui.dart';
+export 'package:giton/ui.dart';
 
 part './src/app.dart';
 part './src/command.dart';
-
-final Logger _log = new Logger('vi3');
 
 
 

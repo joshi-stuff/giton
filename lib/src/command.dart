@@ -93,7 +93,7 @@ class Command {
 
 class GoBackCommand extends Command {
   GoBackCommand(Function handler)
-      : super([new Key('BACKSPACE')], 'Backspace', 'Go back', handler, hidden: true);
+      : super([new Key('ESC')], 'Backspace', 'Go back', handler, hidden: true);
 }
 
 class OpenSelectionCommand extends Command {

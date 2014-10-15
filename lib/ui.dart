@@ -3,17 +3,19 @@ library giton.ui;
 import 'dart:async';
 
 import 'package:curses/curses.dart';
+import 'package:logging/logging.dart';
 
 export 'package:curses/curses.dart' show Point, Size, Key;
 
 final keyboard = new Keyboard._(stdscr);
 
+final Logger _log = new Logger('ui');
 ScreenDC _screen;
 
 ScreenDC get screen {
   if (_screen == null) {
     _screen = new ScreenDC._(stdscr);
-    stdscr.setup(autoRefresh: true, cursorVisibility: CursorVisibility.INVISIBLE);
+    stdscr.setup(autoRefresh: true, cursorVisibility: CursorVisibility.INVISIBLE, escDelay: 25);
   }
 
   return _screen;
@@ -30,28 +32,49 @@ class KeyEvent {
 class DC {
 
   final Window _window;
+  final size;
+  final clientSize;
+  bool _border;
 
-  DC(this._window);
+  DC._(Window window, this._border) :
+    _window = window,
+    size = window.getmaxyx(),
+    clientSize = new Size(window.getmaxyx().rows-2, window.getmaxyx().columns-2) {
 
-  Size get size => _window.getmaxyx();
+    _log.fine('DC._: window=${window}');
+    clear();
+  }
+
+  String toString() => 'DC(${_window})';
 
   void clear() {
+    _log.fine('clear: this=${this}');
     _window.clear();
+    _drawBorder();
   }
 
   void drawString(Point location, String msg) {
     _window.addstr(msg, location: location);
   }
 
+  void dispose({bool clear: true}) {
+    _window.dispose(clear: clear);
+  }
+
+  void _drawBorder() {
+    if (_border) {
+      _window.border();
+    }
+  }
+
 }
 
 class ScreenDC extends DC {
 
-  ScreenDC._(Screen screen) : super(screen);
+  ScreenDC._(Screen screen) : super._(screen, true);
 
-  void dispose() {
-    stdscr.dispose(clear: true);
-  }
+  DC createWindow(Point location, Size size, {bool border: true}) =>
+      new DC._(new Window(location, size), border);
 
 }
 
@@ -68,6 +91,8 @@ class Keyboard {
 
   void _getKey() {
     _screen.wgetch().then((Key key) {
+      //_log.fine("=====> ${new Key('BACKSPACE')}");
+      _log.fine('_getKey: key=${key}');
       _controller.add(new KeyEvent(key));
       _getKey();
     });

@@ -1,11 +1,12 @@
 part of giton.vi3;
 
+final Logger _log = new Logger('vi3');
+
 void launch(App app) {
-  Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((LogRecord rec) {
     new File(
         "app.log").writeAsStringSync(
-            '${rec.level.name}: ${rec.time}: ${rec.message}\n',
+            '${rec.level.name}: ${rec.loggerName}: ${rec.message}\n',
             mode: FileMode.APPEND);
   });
 
@@ -32,10 +33,7 @@ typedef void KeyCaptureHandler(KeyEvent ev);
 
 class App {
 
-  static final _HELP_MSG_CLOSE = '(press ESC to close)';
-  static final _HELP_MSG_AVAILABLE_COMMANDS = 'Available commands:';
-
-  final _dc = screen;
+  final _screenDC = screen;
   final _keyCaptureHandlers = <KeyCaptureHandler>[];
   final _commands = new CommandRegistry();
   final _storedKeys = <Key>[];
@@ -47,10 +45,12 @@ class App {
     addCommand(new Command([new Key('h')], 'h', 'Help', doHelp));
     addCommand(new Command([new Key('q')], 'q', 'Quit', doQuit));
     addCommand(new Command([new Key(' ')], ' ', 'Open OmniCommand (TM)', doOpenOmniCommand, hidden: true));
+    addCommand(new GoBackCommand(doGoBack));
   }
 
   ViewStack get selectedViewStack => _selectedViewStack;
   View get selectedView => (_selectedViewStack == null) ? null : _selectedViewStack.selectedView;
+  Size get screenSize => _screenDC.size;
 
   void addCommand(Command command) {
     _commands.add(command);
@@ -88,36 +88,14 @@ class App {
   }
 
   // Command handlers
+  void doGoBack() {
+    selectedViewStack.pop();
+  }
 
   void doHelp() {
-    /* TODO: make event driven
-    final boxLocation = new Point(_dc.size.rows ~/ 8, _dc.size.columns ~/ 8);
-    final boxSize = new Size(6 * _dc.size.rows ~/ 8, 6 * _dc.size.columns ~/ 8);
-    final msgCloseLocation =
-        new Point(boxSize.rows - 2, boxSize.columns - _HELP_MSG_CLOSE.length - 1);
-    final msgAvailableCommandsLocation = new Point(2, 3);
-
-    final box = new Window(boxLocation, boxSize);
-    box.border();
-
-    box.addstr(_HELP_MSG_CLOSE, location: msgCloseLocation, colorPair: Color.YELLOW);
-    box.addstr(
-        _HELP_MSG_AVAILABLE_COMMANDS,
-        location: msgAvailableCommandsLocation,
-        colorPair: Color.WHITE);
-
-    final commands = _getCommands();
-    for (var i = 0; i < commands.length; i++) {
-      final command = commands[i];
-      final location = new Point(i + 4, 7);
-
-      box.addstr('[' + command.shortcut + '] ' + command.name, location: location);
+    if (selectedView is! HelpView) {
+      selectedViewStack.push(new HelpView(selectedViewStack));
     }
-
-    _screen.getkey().then((key) {
-      box.dispose();
-    });
-    */
   }
 
   void doQuit() {
@@ -147,7 +125,7 @@ class App {
         int fnum = int.parse(_storedKeys.last.name.substring(1), onError: (_) => null);
 
         if (fnum != null) {
-          _log.fine('ket event: selectViewStack(${fnum - 1})');
+          _log.fine('key event: selectViewStack(${fnum - 1})');
           _storedKeys.clear();
           selectViewStack(fnum-1);
         }
@@ -321,20 +299,16 @@ class ViewStack {
   }
 
   void push(View view) {
-    if (_views.length > 0) {
-      selectedView.deactivate();
-    }
-
+    _deactivateSelectedView();
     _views.add(view);
-
-    selectedView.activate();
+    _activateSelectedView();
   }
 
   void pop() {
     if (_views.length > 1) {
-      selectedView.deactivate();
+      _deactivateSelectedView();
       _views.removeLast();
-      selectedView.activate();
+      _activateSelectedView();
     }
   }
 
@@ -349,6 +323,18 @@ class ViewStack {
     selectedView.activate();
   }
 
+  void _activateSelectedView() {
+    if ((app.selectedViewStack == this) && (_views.length > 0)) {
+      selectedView.activate();
+    }
+  }
+
+  void _deactivateSelectedView() {
+    if ((app.selectedViewStack == this) && (_views.length > 0)) {
+      selectedView.deactivate();
+    }
+  }
+
   // Command methods
 
   List<Command> _getCommands() {
@@ -358,7 +344,7 @@ class ViewStack {
   }
 
   List<Command> _searchCommandsPattern(String pattern) {
-    var commands = _views.last._searchCommands(pattern);
+    var commands = _views.last._searchCommandsPattern(pattern);
     commands.addAll(_commands.searchPattern(pattern));
     return commands;
   }
@@ -378,19 +364,53 @@ class View {
   final ViewStack viewStack;
   final _commands = new CommandRegistry();
   DC _dc;
+  Point _location;
+  Size _size;
+  String _title = '';
+  String _status = '';
 
   View(this.viewStack) {
-    _dc = app._dc;
+    _size = app._screenDC.size;
+    _location = new Point(0, 0);
   }
 
   App get app => viewStack.app;
+  Point get location => _location;
+  Size get size => _size;
+
+  void set location(Point location) {
+    _location = location;
+    _disposeDC();
+  }
+
+  void set size(Size size) {
+    _size = size;
+    _disposeDC();
+  }
+
+  void set title(String title) {
+    _title = title;
+  }
+
+  void set status(String status) {
+    _status = status;
+  }
 
   void addCommand(Command command) {
     _commands.add(command);
   }
 
   void repaint() {
+    if (_dc == null) {
+      _dc = app._screenDC.createWindow(_location, _size);
+      _log.fine('repaint: new dc=${_dc}');
+    }
+
+    _log.fine('repaint: this=${this} dc=${_dc}');
     _dc.clear();
+    _drawDecoration(_dc);
+
+    _log.fine('paint: this=${this} dc=${_dc}');
     paint(_dc);
   }
 
@@ -404,6 +424,27 @@ class View {
   void deactivate() {
   }
 
+  void _disposeDC() {
+    if (_dc != null) {
+      _dc.dispose(clear: false);
+      _dc = null;
+    }
+  }
+
+  void _drawDecoration(DC dc) {
+    _log.fine('_drawDecoration: this=${this} dc=${_dc}');
+
+    if (_title.length > 0) {
+      var location = new Point(0, 2);
+      dc.drawString(location, ' ${_title} '); // Color.WHITE);
+    }
+
+    if (_status.length > 0) {
+      var location = new Point(size.rows - 1, size.columns - _status.length - 4);
+      dc.drawString(location, ' ${_status} '); // Color.YELLOW);
+    }
+  }
+
   // Command methods
 
   List<Command> _getCommands() => _commands.all.toList();
@@ -411,5 +452,33 @@ class View {
   List<Command> _searchCommandsPattern(String pattern) => _commands.searchPattern(pattern);
 
   List<Command> _searchCommandsKeys(List<Key> keys) => _commands.searchKeys(keys);
+
+}
+
+class HelpView extends View {
+
+  static final _HELP_MSG_CLOSE = '(press ESC to close)';
+  static final _HELP_MSG_AVAILABLE_COMMANDS = 'Available commands';
+
+  HelpView(ViewStack viewStack) : super(viewStack) {
+    final screenSize = app.screenSize;
+
+    location = new Point(screenSize.rows ~/ 8, screenSize.columns ~/ 8);
+    size = new Size(6 * screenSize.rows ~/ 8, 6 * screenSize.columns ~/ 8);
+    title = _HELP_MSG_AVAILABLE_COMMANDS;
+    status = _HELP_MSG_CLOSE;
+  }
+
+  void paint(DC dc) {
+    final commands = app._getCommands();
+    int row = 2;
+    for (var i = 0; i < commands.length; i++) {
+      final command = commands[i];
+      if (!command.hidden) {
+        final location = new Point(row++, 3);
+        dc.drawString(location, '[' + command.shortcut + '] ' + command.name);
+      }
+    }
+  }
 
 }
